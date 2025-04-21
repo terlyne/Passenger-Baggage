@@ -1,14 +1,19 @@
 import openpyxl
 from models.passenger import Passenger
+import uuid
 
 
 class Baggage:
-    def __init__(self):
+    def __init__(self, capacity):
+        self.capacity = capacity
         self.passengers = []
+        self.saved_ids = set()
 
     def add_passenger(self, passenger):
-        self.passengers.append(passenger)
-        return True
+        if len(self.passengers) < self.capacity:
+            self.passengers.append(passenger)
+            return True
+        return False
 
     def save_to_file(self, filename):
         try:
@@ -30,16 +35,20 @@ class Baggage:
                 ws.append(headers)
 
             for passenger in self.passengers:
-                ws.append(
-                    [
-                        passenger.flight_number,
-                        passenger.departure_datetime,
-                        passenger.destination,
-                        passenger.passenger_name,
-                        passenger.count_bagage,
-                        passenger.weight_bagage,
-                    ]
-                )
+                
+                if passenger.id is None:
+                    passenger.id = str(uuid.uuid4())
+                    self.saved_ids.add(passenger.id)
+                    ws.append(
+                        [
+                            passenger.flight_number,
+                            passenger.departure_datetime,
+                            passenger.destination,
+                            passenger.passenger_name,
+                            passenger.count_baggage,
+                            passenger.weight_baggage,
+                        ]
+                    )
 
             wb.save(filename)
             return True
@@ -56,10 +65,14 @@ class Baggage:
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if row and len(row) >= 6 and all(cell is not None for cell in row):
                     records_found = True
-                    flight_number, departure_datetime, destination, passenger_name, count_bagage, weight_bagage = row
-                    passenger = Passenger(flight_number, departure_datetime, destination, passenger_name, count_bagage, weight_bagage)
-                    self.add_passenger(passenger)
-
+                    flight_number, departure_datetime, destination, passenger_name, count_baggage, weight_baggage = row
+                    passenger = Passenger(flight_number, departure_datetime, destination, passenger_name, count_baggage, weight_baggage)
+                    if len(self.passengers) < self.capacity:
+                        passenger.id = str(uuid.uuid4())
+                        self.saved_ids.add(passenger.id)
+                        self.add_passenger(passenger)
+                    else:
+                        raise Exception("Были выгружены не все пассажиры, недостаточно вместимости багажа.")
             if not records_found:
                 raise ValueError(f"В файле {filename} нет записей!")
 

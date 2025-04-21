@@ -201,13 +201,15 @@ class MainWindow(QMainWindow):
             departure_datetime=departure_datetime,
             destination=destination,
             passenger_name=passenger_name,
-            count_Baggage=count_Baggage,
-            weight_Baggage=weight_Baggage,
+            count_baggage=count_Baggage,
+            weight_baggage=weight_Baggage,
         )
 
         if self.Baggage.add_passenger(new_passenger):
             self.draw_info_garage_layout()
             self.clear_inputs()
+        else:
+            self.show_error_message("Вы не можете добавить еще один багаж, недостаточная вместимость!")
 
     def sort_passengers(self):
         self.Baggage.sort_by_name()
@@ -229,6 +231,9 @@ class MainWindow(QMainWindow):
         except FileNotFoundError as e:
             self.show_error_message(str(e))
         except ValueError as e:
+            self.show_error_message(str(e))
+        except Exception as e:
+            self.draw_info_garage_layout()
             self.show_error_message(str(e))
 
     def clear_inputs(self):
