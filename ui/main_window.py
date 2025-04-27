@@ -18,48 +18,99 @@ from PyQt6.QtWidgets import (
     QListWidgetItem,
 )
 from PyQt6.QtCore import Qt
+import json
 
 from models.passenger import Passenger
 from models.baggage import Baggage
+
+from ui.init_widget import InitWidget
 
 
 class MainWindow(QMainWindow):
     def __init__(self, Baggage: Baggage):
         super().__init__()
-
         self.Baggage = Baggage
 
-        self.central_widget = QWidget()
+        # Устанавливаем размер и заголовок окна
         self.setMinimumSize(700, 500)
         self.setWindowTitle("Ведение информации о багажах")
 
-        self.main_layout = QVBoxLayout()
+        # Создаем стек виджетов для переключения между экранами
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
 
+        # Создаем основной layout
+        self.main_layout = QVBoxLayout()
+        self.central_widget.setLayout(self.main_layout)
+
+        # Создаем контейнер для InitWidget
+        self.init_container = QWidget()
+        init_container_layout = QVBoxLayout()
+        self.init_container.setLayout(init_container_layout)
+
+        # Создаем InitWidget
+        self.init_widget = InitWidget()
+        init_container_layout.addWidget(self.init_widget)
+
+        # Добавляем контейнер в главный layout
+        self.main_layout.addWidget(self.init_container)
+
+        # Создаем контейнер для основного интерфейса (пока скрытый)
+        self.content_container = QWidget()
+        self.content_container.hide()
+        self.content_layout = QVBoxLayout()
+        self.content_container.setLayout(self.content_layout)
+        self.main_layout.addWidget(self.content_container)
+
+        # Подключаем сигнал кнопки подтверждения
+        self.init_widget.accept_button.clicked.connect(self.on_init_accepted)
+
+        # Словарь для хранения текущего веса багажа по рейсам
+        self.current_weights = {}
+
+    def on_init_accepted(self):
+        # Сохраняем данные о рейсах (даже если их нет)
+        if not self.init_widget.save_max_weights_to_json("max_weights.json"):
+            return
+
+        # Скрываем init_container
+        self.init_container.hide()
+
+        # Инициализируем основной интерфейс
+        self.init_main_window()
+
+        # Показываем основной интерфейс
+        self.content_container.show()
+
+    def init_main_window(self):
+        # Создаем layout для информации
         self.info_layout = QHBoxLayout()
 
+        # Создаем разделы интерфейса
         self.draw_passenger_info_layout()
         self.draw_Baggage_info_layout()
 
+        # Добавляем разделы в info_layout
         self.info_layout.addLayout(self.passenger_info_layout)
         self.info_layout.addLayout(self.Baggage_info_layout)
 
-        self.main_layout.addLayout(self.info_layout)
+        # Добавляем info_layout в content_layout
+        self.content_layout.addLayout(self.info_layout)
+
+        # Создаем и добавляем кнопки
         self.save_button = QPushButton("Сохранить в файл")
         self.save_button.setMaximumWidth(180)
         self.save_button.setMinimumHeight(40)
         self.load_button = QPushButton("Загрузить из файла")
         self.load_button.setMaximumWidth(180)
         self.load_button.setMinimumHeight(40)
+
         self.bottom_buttons_layout = QHBoxLayout()
         self.bottom_buttons_layout.addWidget(self.save_button)
         self.bottom_buttons_layout.addWidget(self.load_button)
+        self.content_layout.addLayout(self.bottom_buttons_layout)
 
-        self.main_layout.addLayout(self.bottom_buttons_layout)
-
-        self.central_widget.setLayout(self.main_layout)
-        self.setCentralWidget(self.central_widget)
-
-        # Подключение кнопок к соответствующим функциям
+        # Подключаем сигналы кнопок
         self.add_car_button.clicked.connect(self.add_passenger)
         self.sort_by_surname_btn.clicked.connect(self.sort_passengers)
         self.save_button.clicked.connect(self.save_to_file)
@@ -162,7 +213,15 @@ class MainWindow(QMainWindow):
 
         # Комбобокс для фильтров поиска
         self.search_filters_combobox = QComboBox()
-        self.search_filters_combobox.addItems(["Без фильтра", "Номер рейса", "Дата вылета", "Пункт назначения", "Вес багажа"])
+        self.search_filters_combobox.addItems(
+            [
+                "Без фильтра",
+                "Номер рейса",
+                "Дата вылета",
+                "Пункт назначения",
+                "Вес багажа",
+            ]
+        )
         self.search_filters_combobox.currentIndexChanged.connect(self.draw_search_input)
         self.search_layout.addWidget(self.search_filters_combobox)
 
@@ -192,9 +251,53 @@ class MainWindow(QMainWindow):
         weight_Baggage = self.weight_Baggage_input.value()
 
         # Проверка введенных данных
-        if flight_number == 0 or destination == "" or passenger_name == "" or count_Baggage == 0 or weight_Baggage == 0:
+        if (
+            flight_number == 0
+            or destination == ""
+            or passenger_name == ""
+            or count_Baggage == 0
+            or weight_Baggage == 0
+        ):
             self.show_error_message("Пожалуйста, введите все данные!")
             return
+
+        # Проверка максимального веса багажа для рейса (только если рейс есть в списке)
+        try:
+            with open("max_weights.json", "r", encoding="UTF-8") as f:
+                flights = json.load(f)
+                # Ищем рейс в списке
+                flight_info = next(
+                    (
+                        flight
+                        for flight in flights
+                        if flight["flight_number"] == flight_number
+                    ),
+                    None,
+                )
+
+                # Если рейс найден, проверяем вес
+                if flight_info is not None:
+                    max_weight = flight_info["max_weight"]
+                    # Получаем текущий общий вес багажа для этого рейса
+                    current_weight = 0
+                    for passenger in self.Baggage.passengers:
+                        if passenger.flight_number == flight_number:
+                            current_weight += passenger.weight_baggage
+
+                    # Проверяем, не превысит ли новый багаж максимальный вес
+                    if current_weight + weight_Baggage > max_weight:
+                        self.show_error_message(
+                            f"Превышен максимальный вес багажа для рейса {flight_number}!\n"
+                            f"Максимальный вес: {max_weight} кг\n"
+                            f"Текущий общий вес: {current_weight} кг\n"
+                            f"Вес нового багажа: {weight_Baggage} кг\n"
+                            f"Доступно для добавления: {max_weight - current_weight} кг"
+                        )
+                        return
+        except FileNotFoundError:
+            pass
+        except json.JSONDecodeError:
+            pass
 
         new_passenger = Passenger(
             flight_number=flight_number,
@@ -209,7 +312,9 @@ class MainWindow(QMainWindow):
             self.draw_info_garage_layout()
             self.clear_inputs()
         else:
-            self.show_error_message("Вы не можете добавить еще один багаж, недостаточная вместимость!")
+            self.show_error_message(
+                "Вы не можете добавить еще один багаж, недостаточная вместимость!"
+            )
 
     def sort_passengers(self):
         self.Baggage.sort_by_name()
@@ -274,18 +379,30 @@ class MainWindow(QMainWindow):
 
         # Поиск среди пассажиров в зависимости от выбранного фильтра
         for passenger in self.Baggage.passengers:
-            if search_filter == "Номер рейса" and str(passenger.flight_number) == search_input_text:
+            if (
+                search_filter == "Номер рейса"
+                and str(passenger.flight_number) == search_input_text
+            ):
                 self.passengers_list.addItem(str(passenger))
-            elif search_filter == "Дата вылета" and passenger.departure_datetime.startswith(search_input_text):
+            elif (
+                search_filter == "Дата вылета"
+                and passenger.departure_datetime.startswith(search_input_text)
+            ):
                 self.passengers_list.addItem(str(passenger))
-            elif search_filter == "Пункт назначения" and search_input_text.lower() in passenger.destination.lower():
+            elif (
+                search_filter == "Пункт назначения"
+                and search_input_text.lower() in passenger.destination.lower()
+            ):
                 self.passengers_list.addItem(str(passenger))
-            elif search_filter == "Вес багажа" and passenger.weight_Baggage == self.search_input_widget.value():
+            elif (
+                search_filter == "Вес багажа"
+                and passenger.weight_Baggage == self.search_input_widget.value()
+            ):
                 self.passengers_list.addItem(str(passenger))
 
     def draw_search_input(self):
         # Удаление предыдущего виджета ввода поиска, если он существует
-        if hasattr(self, 'search_input_widget') and self.search_input_widget:
+        if hasattr(self, "search_input_widget") and self.search_input_widget:
             self.search_layout.removeWidget(self.search_input_widget)
             self.search_input_widget.deleteLater()
 

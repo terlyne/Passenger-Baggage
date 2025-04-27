@@ -35,7 +35,7 @@ class Baggage:
                 ws.append(headers)
 
             for passenger in self.passengers:
-                
+
                 if passenger.id is None:
                     passenger.id = str(uuid.uuid4())
                     self.saved_ids.add(passenger.id)
@@ -65,14 +65,30 @@ class Baggage:
             for row in ws.iter_rows(min_row=2, values_only=True):
                 if row and len(row) >= 6 and all(cell is not None for cell in row):
                     records_found = True
-                    flight_number, departure_datetime, destination, passenger_name, count_baggage, weight_baggage = row
-                    passenger = Passenger(flight_number, departure_datetime, destination, passenger_name, count_baggage, weight_baggage)
+                    (
+                        flight_number,
+                        departure_datetime,
+                        destination,
+                        passenger_name,
+                        count_baggage,
+                        weight_baggage,
+                    ) = row
+                    passenger = Passenger(
+                        flight_number,
+                        departure_datetime,
+                        destination,
+                        passenger_name,
+                        count_baggage,
+                        weight_baggage,
+                    )
                     if len(self.passengers) < self.capacity:
                         passenger.id = str(uuid.uuid4())
                         self.saved_ids.add(passenger.id)
                         self.add_passenger(passenger)
                     else:
-                        raise Exception("Были выгружены не все пассажиры, недостаточно вместимости багажа.")
+                        raise Exception(
+                            "Были выгружены не все пассажиры, недостаточно вместимости багажа."
+                        )
             if not records_found:
                 raise ValueError(f"В файле {filename} нет записей!")
 

@@ -1,5 +1,13 @@
 class Passenger:
-    def __init__(self, flight_number, departure_datetime, destination, passenger_name, count_baggage, weight_baggage):
+    def __init__(
+        self,
+        flight_number,
+        departure_datetime,
+        destination,
+        passenger_name,
+        count_baggage,
+        weight_baggage,
+    ):
         self.id = None
         self.flight_number = flight_number
         self.departure_datetime = departure_datetime

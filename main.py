@@ -5,8 +5,7 @@ import sys
 
 
 def main():
-    baggage = Baggage(10) # Здесь устанавливаем вместимость багажа!!!
-
+    baggage = Baggage(capacity=10)
     app = QApplication(sys.argv)
     window = MainWindow(baggage)
     window.show()
